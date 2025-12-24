@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>代号：萝卜 | PROJECT LUO-BO</title>
+    <style>
+        /* --- 核心变量 --- */
+        :root {
+            --primary: #0f0;     /* 终端绿 */
+            --primary-dim: rgba(0, 255, 0, 0.2);
+            --danger: #f00;      /* 警告红 */
+            --danger-dim: rgba(255, 0, 0, 0.2);
+            --gold: #ffd700;     /* 荣耀金 */
+            --bg: #050505;       /* 深黑背景 */
+            --glass: rgba(0, 20, 0, 0.6);
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none; /* 防止点击时选中文本影响观感 */
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            margin: 0;
+            background-color: var(--bg);
+            color: var(--primary);
+            font-family: 'Courier New', Courier, monospace; /* 等宽字体增加科技感 */
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* --- CRT 屏幕特效 --- */
+        .crt-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 999;
+            background: 
+                /* 扫描线 */
+                linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+                /* 屏幕微光 */
+                radial-gradient(circle at center, rgba(0,255,0,0.05) 0%, rgba(0,0,0,0.5) 100%);
+            background-size: 100% 4px, 100% 100%;
+        }
+
+        /* --- 主战场容器 --- */
+        .battlefield {
+            position: relative;
+            width: 90%;
+            max-width: 800px;
+            height: 400px;
+            border: 2px solid var(--primary);
+            background: var(--glass);
+            box-shadow: 0 0 20px var(--primary-dim), inset 0 0 30px var(--primary-dim);
+            display: flex;
+            justify-content: space-between; /* 两端对齐 */
+            align-items: center;
+            padding: 0 10%; /* 给左右留出空间 */
+            margin-bottom: 30px;
+            overflow: visible;
+        }
+
+        /* 角落装饰 UI */
+        .hud-corner {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--primary);
+            transition: all 0.3s;
+        }
+        .tl { top: -2px; left: -2px; border-right: none; border-bottom: none; }
+        .tr { top: -2px; right: -2px; border-left: none; border-bottom: none; }
+        .bl { bottom: -2px; left: -2px; border-right: none; border-top: none; }
+        .br { bottom: -2px; right: -2px; border-left: none; border-top: none; }
+
+        .hud-text {
+            position: absolute;
+            font-size: 12px;
+            opacity: 0.7;
+            letter-spacing: 1px;
+        }
+        .top-left-text { top: 10px; left: 15px; }
+        .btm-right-text { bottom: 10px; right: 15px; text-align: right; }
+
+        /* --- 实体 (纸巾/萝卜/猫) --- */
+        .entity-wrapper {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: transform 0.3s;
+        }
+
+        .entity {
+            font-size: 60px;
+            width: 100px;
+            height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            filter: drop-shadow(0 0 10px var(--primary-dim));
+        }
+
+        .label {
+            margin-top: 10px;
+            font-size: 12px;
+            background: var(--primary);
+            color: #000;
+            padding: 2px 6px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        /* 猫咪无人机样式 */
+        #cat-wrapper {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 20;
+            pointer-events: none; /* 防止点击猫 */
+        }
+
+        #cat-visual {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 2px dashed var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: border-color 0.3s;
+        }
+
+        /* 旋转光圈 */
+        #cat-visual::after {
+            content: '';
+            position: absolute;
+            top: -5px; left: -5px; right: -5px; bottom: -5px;
+            border: 2px solid transparent;
+            border-top: 2px solid var(--primary);
+            border-bottom: 2px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 4s linear infinite;
+        }
+
+        /* 目标锁定状态 */
+        .locked .entity {
+            animation: pulse-red 0.5s infinite;
+        }
+        .locked .label {
+            background: var(--danger);
+            color: #fff;
+        }
+
+        /* --- 巨大的“真棒”特效 --- */
+        .success-overlay {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            pointer-events: none;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .big-text {
+            font-size: 100px;
+            font-weight: 900;
+            color: var(--gold);
+            text-shadow: 
+                4px 4px 0 #000,
+                -2px -2px 0 var(--danger),
+                0 0 30px var(--gold);
+            white-space: nowrap;
+            line-height: 1;
+        }
+
+        .sub-text {
+            font-size: 24px;
+            color: #fff;
+            letter-spacing: 5px;
+            margin-top: 10px;
+            background: var(--danger);
+            padding: 5px 20px;
+        }
+
+        /* --- 控制面板 --- */
+        .controls {
+            display: flex;
+            gap: 20px;
+            z-index: 50;
+        }
+
+        .btn {
+            background: #000;
+            border: 2px solid var(--primary);
+            color: var(--primary);
+            padding: 15px 30px;
+            font-size: 16px;
+            font-family: inherit;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn:hover {
+            background: var(--primary);
+            color: #000;
+            box-shadow: 0 0 20px var(--primary);
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+        }
+
+        .btn-danger {
+            border-color: var(--danger);
+            color: var(--danger);
+        }
+        .btn-danger:hover {
+            background: var(--danger);
+            color: #fff;
+            box-shadow: 0 0 20px var(--danger);
+        }
+        
+        /* 禁用状态 */
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            filter: grayscale(1);
+        }
+
+        /* --- 动画关键帧 --- */
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        
+        @keyframes pulse-red {
+            0% { filter: drop-shadow(0 0 5px var(--danger)); transform: scale(1); }
+            50% { filter: drop-shadow(0 0 20px var(--danger)); transform: scale(1.1); }
+            100% { filter: drop-shadow(0 0 5px var(--danger)); transform: scale(1); }
+        }
+
+        @keyframes stamp-in {
+            0% { transform: translate(-50%, -50%) scale(5); opacity: 0; }
+            70% { transform: translate(-50%, -50%) scale(0.9); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+
+        @keyframes screen-shake {
+            0% { transform: translate(0, 0) rotate(0); }
+            10% { transform: translate(-5px, -5px) rotate(-1deg); }
+            20% { transform: translate(5px, 5px) rotate(1deg); }
+            30% { transform: translate(-5px, 5px) rotate(0); }
+            40% { transform: translate(5px, -5px) rotate(1deg); }
+            50% { transform: translate(-2px, 2px) rotate(-1deg); }
+            100% { transform: translate(0, 0) rotate(0); }
+        }
+
+        .shaking {
+            animation: screen-shake 0.4s ease-out;
+        }
+
+        .show-success {
+            animation: stamp-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            opacity: 1;
+        }
+
+        /* 移动端适配 */
+        @media (max-width: 600px) {
+            .battlefield { height: 300px; padding: 0 20px; }
+            .entity { font-size: 40px; width: 60px; height: 60px; }
+            #cat-visual { width: 80px; height: 80px; }
+            .big-text { font-size: 60px; }
+            .btn { padding: 10px 15px; font-size: 14px; }
+            .controls { gap: 10px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- CRT 效果遮罩 -->
+    <div class="crt-overlay"></div>
+
+    <!-- 战场区域 -->
+    <div class="battlefield" id="battlefield">
+        <!-- 装饰 HUD -->
+        <div class="hud-corner tl"></div>
+        <div class="hud-corner tr"></div>
+        <div class="hud-corner bl"></div>
+        <div class="hud-corner br"></div>
+        <div class="hud-text top-left-text">SYS.TGT.V2.4<br>MODE: PREDATOR</div>
+        <div class="hud-text btm-right-text">STATUS: STANDBY<br>COORDS: <span id="coords">00,00</span></div>
+
+        <!-- 左侧：纸巾 (Decoy) -->
+        <div class="entity-wrapper" id="target-paper">
+            <div class="entity">🧻</div>
+            <div class="label">DECOY-01</div>
+        </div>
+
+        <!-- 中间：猫 (Unit) -->
+        <div class="entity-wrapper" id="cat-wrapper">
+            <div id="cat-visual">
+                <div class="entity" id="cat-emoji">🐱</div>
+            </div>
+            <div class="label" id="cat-status">UNIT-NEKO</div>
+        </div>
+
+        <!-- 右侧：萝卜 (Target) -->
+        <div class="entity-wrapper" id="target-radish">
+            <div class="entity">🥕</div>
+            <div class="label">TARGET-L</div>
+        </div>
+
+        <!-- 成功特效 -->
+        <div class="success-overlay" id="success-overlay">
+            <div class="big-text">真 棒 !</div>
+            <div class="sub-text">MISSION ACCOMPLISHED</div>
+        </div>
+    </div>
+
+    <!-- 控制区域 -->
+    <div class="controls">
+        <button class="btn" id="btn-paper" onclick="engage('paper')">锁定：纸巾</button>
+        <button class="btn btn-danger" id="btn-radish" onclick="engage('radish')">锁定：萝卜</button>
+    </div>
+
+    <script>
+        const catWrapper = document.getElementById('cat-wrapper');
+        const catVisual = document.getElementById('cat-visual');
+        const catEmoji = document.getElementById('cat-emoji');
+        const catStatus = document.getElementById('cat-status');
+        const battlefield = document.getElementById('battlefield');
+        const successOverlay = document.getElementById('success-overlay');
+        const coordsDisplay = document.getElementById('coords');
+        const btnPaper = document.getElementById('btn-paper');
+        const btnRadish = document.getElementById('btn-radish');
+
+        let isEngaged = false;
+        let audioCtx;
+
+        // --- 音效与语音系统 ---
+        
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        // 播放合成音效 (滴滴声/爆炸声)
+        function playTone(type) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            const now = audioCtx.currentTime;
+
+            if (type === 'lock') {
+                // 高科技锁定音
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            } else if (type === 'impact') {
+                // 低沉撞击音
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.exponentialRampToValueAtTime(0.01, now + 0.4);
+                gain.gain.setValueAtTime(0.5, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+                osc.start(now);
+                osc.stop(now + 0.4);
+            } else if (type === 'miss') {
+                // 失败滑音
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.linearRampToValueAtTime(100, now + 0.3);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            }
+        }
+
+        // 播放语音 (TTS)
+        function speak(text, pitch = 1.0, rate = 1.0, cancelPrev = true) {
+            if ('speechSynthesis' in window) {
+                if (cancelPrev) {
+                    window.speechSynthesis.cancel();
+                }
+                
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'zh-CN'; // 设置中文
+                utterance.pitch = pitch;  // 音调
+                utterance.rate = rate;    // 语速
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        // --- 核心逻辑 ---
+
+        // 随机更新坐标数字
+        setInterval(() => {
+            if(!isEngaged) {
+                const x = Math.floor(Math.random() * 99);
+                const y = Math.floor(Math.random() * 99);
+                coordsDisplay.innerText = `${x},${y}`;
+            }
+        }, 200);
+
+        function engage(btnType) {
+            // 初始化音频上下文
+            initAudio();
+
+            if (isEngaged) return; 
+            isEngaged = true;
+
+            // 禁用按钮
+            btnPaper.disabled = true;
+            btnRadish.disabled = true;
+
+            let actualTargetType = btnType;
+
+            // 核心逻辑：如果点击的是萝卜按钮，加入随机性
+            if (btnType === 'radish') {
+                // 1. 发出指令“萝卜”
+                speak("萝卜", 1.0, 1.2);
+
+                // 2. 50% 概率选错 (变成纸巾)
+                if (Math.random() < 0.5) {
+                    actualTargetType = 'paper';
+                }
+            }
+
+            const targetId = actualTargetType === 'paper' ? 'target-paper' : 'target-radish';
+            const targetEl = document.getElementById(targetId);
+
+            // 3. 播放锁定音效 & 视觉反馈
+            playTone('lock');
+            targetEl.classList.add('locked');
+            targetEl.querySelector('.label').innerText = "LOCKING...";
+            
+            // 4. 延时让猫咪回应并出击 (为了让“萝卜”音效先出来)
+            setTimeout(() => {
+                // 喊出“喵” (不打断之前的“萝卜”)
+                speak("喵", 1.8, 1.2, false);
+
+                // 计算位移
+                const catRect = catWrapper.getBoundingClientRect();
+                const targetRect = targetEl.getBoundingClientRect();
+                const deltaX = targetRect.left - catRect.left + (targetRect.width / 2) - (catRect.width / 2);
+                const deltaY = targetRect.top - catRect.top;
+
+                // 视觉状态变化
+                catVisual.style.borderColor = "var(--danger)";
+                catVisual.style.borderStyle = "solid";
+                catStatus.innerText = "ATTACK";
+                catStatus.style.background = "var(--danger)";
+                catStatus.style.color = "#fff";
+
+                // 蓄力动画
+                catWrapper.style.transition = "transform 0.1s ease-out";
+                catWrapper.style.transform = `translate(calc(-50% + ${deltaX * -0.1}px), -50%)`;
+
+                // 冲刺动画
+                setTimeout(() => {
+                    catWrapper.style.transition = "transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)";
+                    catWrapper.style.transform = `translate(calc(-50% + ${deltaX}px), calc(-50% + ${deltaY}px)) scale(1.5)`;
+                    
+                    // 撞击判定
+                    setTimeout(() => {
+                        handleImpact(actualTargetType, targetEl);
+                    }, 250); 
+                }, 100);
+
+            }, 400); // 稍微等待一下，给“萝卜”发音留时间
+        }
+
+        function handleImpact(targetType, targetEl) {
+            battlefield.classList.add('shaking');
+            
+            // 只有真正撞到萝卜才算真棒
+            if (targetType === 'radish') {
+                // --- 成功逻辑 ---
+                playTone('impact');
+                
+                // 喊出“真棒”
+                setTimeout(() => speak("真棒", 1.0, 0.8), 100);
+
+                targetEl.querySelector('.entity').innerText = "💥";
+                targetEl.querySelector('.label').innerText = "DESTROYED";
+                catEmoji.innerText = "😎"; 
+                
+                successOverlay.classList.add('show-success');
+                document.body.style.background = "#110"; 
+                
+            } else {
+                // --- 失败逻辑 (即使你按的是萝卜，但猫撞了纸巾) ---
+                // 取消失败音效和语音
+                // playTone('miss');
+                // speak("诶？", 1.5, 1.0);
+
+                targetEl.querySelector('.entity').innerText = "💨";
+                targetEl.querySelector('.label').innerText = "MISS";
+                catEmoji.innerText = "❓";
+            }
+
+            // --- 自动复位 ---
+            setTimeout(resetSystem, 2000);
+        }
+
+        function resetSystem() {
+            isEngaged = false;
+            
+            // 恢复按钮
+            btnPaper.disabled = false;
+            btnRadish.disabled = false;
+            
+            // 移除特效
+            battlefield.classList.remove('shaking');
+            successOverlay.classList.remove('show-success');
+            
+            // 重置猫
+            catWrapper.style.transition = "transform 0.5s ease";
+            catWrapper.style.transform = "translate(-50%, -50%)";
+            catEmoji.innerText = "🐱";
+            catVisual.style.borderColor = "var(--primary)";
+            catVisual.style.borderStyle = "dashed";
+            catStatus.innerText = "UNIT-NEKO";
+            catStatus.style.background = "var(--primary)";
+            catStatus.style.color = "#000";
+
+            // 重置目标
+            resetTarget('target-paper', '🧻', 'DECOY-01');
+            resetTarget('target-radish', '🥕', 'TARGET-L');
+
+            // 重置背景
+            document.body.style.background = "var(--bg)";
+        }
+
+        function resetTarget(id, emoji, label) {
+            const el = document.getElementById(id);
+            el.classList.remove('locked');
+            el.querySelector('.entity').innerText = emoji;
+            el.querySelector('.label').innerText = label;
+        }
+    </script>
+</body>
+</html>
